@@ -1,0 +1,598 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SchedulAI - Smart Student Assistant</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    ::-webkit-scrollbar {
+      width: 8px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #e5e7eb;
+      border-radius: 10px;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #6366f1;
+      border-radius: 10px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #4f46e5;
+    }
+    /* Styles for the new pop-ups */
+    .popup-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.6);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 1000;
+    }
+    .popup-content {
+      background: white;
+      padding: 2.5rem; /* Increased padding */
+      border-radius: 0.75rem; /* Increased border-radius */
+      box-shadow: 0 10px 15px rgba(0, 0, 0, 0.1);
+      text-align: center;
+      max-width: 90%;
+      width: 400px; /* Wider popup */
+      color: #333;
+      font-size: 1.1rem; /* Slightly larger text */
+    }
+    .popup-buttons {
+      margin-top: 1.5rem; /* More space above buttons */
+      display: flex;
+      justify-content: center;
+      gap: 1rem; /* Space between buttons */
+    }
+    .popup-button {
+      padding: 0.75rem 1.75rem; /* Larger buttons */
+      border-radius: 0.5rem; /* Rounded buttons */
+      font-weight: 600; /* Bolder text */
+      transition: background-color 0.2s ease-in-out;
+    }
+  </style>
+</head>
+<body class="bg-gray-100 text-gray-800 transition duration-300">
+  <header class="bg-gradient-to-r from-indigo-600 to-purple-700 text-white p-4 flex justify-between items-center shadow">
+    <div class="text-sm" id="time">Loading...</div>
+    <h1 class="text-xl font-bold">SchedulAI</h1>
+  </header>
+
+  <nav class="bg-indigo-700 text-white flex justify-around p-3 text-sm shadow-md">
+    <button class="hover:bg-indigo-600 px-3 py-1 rounded transition" onclick="showTab('scheduleTab')">📅 Schedule</button>
+    <button class="hover:bg-indigo-600 px-3 py-1 rounded transition" onclick="showTab('backlogTab')">🧱 Backlog</button>
+    <button class="hover:bg-indigo-600 px-3 py-1 rounded transition" onclick="showTab('bonusTab')">✨ Bonus</button>
+    <button class="hover:bg-indigo-600 px-3 py-1 rounded transition" onclick="showTab('statsTab')">📊 Stats</button>
+    <button class="hover:bg-indigo-600 px-3 py-1 rounded transition" onclick="showTab('recordsTab')">📄 Records</button>
+  </nav>
+
+  <main class="max-w-4xl mx-auto mt-6 space-y-6 p-4">
+    <section id="scheduleTab" class="tab-content">
+      <h2 class="text-lg font-semibold text-indigo-700 mb-4">Today's Schedule</h2>
+      <table class="w-full text-sm table-auto bg-white rounded shadow overflow-hidden">
+        <thead class="bg-indigo-100">
+          <tr>
+            <th class="p-2 text-left">Task</th>
+            <th class="p-2 text-left">Time</th>
+            <th class="p-2 text-left">Status</th>
+            <th class="p-2 text-left">Actions</th>
+          </tr>
+        </thead>
+        <tbody id="scheduleTable"></tbody>
+      </table>
+
+      <div class="mt-4 space-y-2">
+        <input id="taskName" type="text" placeholder="Task Name" class="w-full p-2 border rounded" />
+        <input id="taskTime" type="time" class="w-full p-2 border rounded" />
+        <button onclick="addTask()" class="bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700">Add Task</button>
+      </div>
+    </section>
+
+    <section id="backlogTab" class="tab-content hidden">
+      <h2 class="text-lg font-semibold text-red-600 mb-4">Backlog</h2>
+      <div id="backlogList" class="space-y-2"></div>
+    </section>
+
+    <section id="bonusTab" class="tab-content hidden">
+      <h2 class="text-lg font-semibold text-teal-600 mb-4">Bonus Alerts</h2>
+      <input id="bonusTask" type="text" placeholder="Bonus Task" class="w-full p-2 border rounded mb-2" />
+      <input id="bonusTime" type="time" class="w-full p-2 border rounded mb-2" />
+      <button onclick="addBonus()" class="bg-teal-600 text-white px-4 py-2 rounded hover:bg-teal-700">Add Bonus</button>
+      <div id="bonusList" class="mt-4 space-y-2"></div>
+    </section>
+
+    <section id="statsTab" class="tab-content hidden">
+      <h2 class="text-lg font-semibold text-blue-600 mb-4">Performance Graph</h2>
+      <div class="relative h-72 bg-white p-4 rounded shadow">
+        <canvas id="statsChart" class="w-full h-full"></canvas>
+      </div>
+    </section>
+
+    <section id="recordsTab" class="tab-content hidden">
+      <h2 class="text-lg font-semibold text-gray-700 mb-4">Completed Task Records</h2>
+      <table class="w-full text-sm table-auto bg-white rounded shadow overflow-hidden">
+        <thead class="bg-gray-100">
+          <tr>
+            <th class="p-2 text-left">Task</th>
+            <th class="p-2 text-left">Scheduled</th>
+            <th class="p-2 text-left">Started</th>
+            <th class="p-2 text-left">Completed</th>
+            <th class="p-2 text-left">Duration</th>
+          </tr>
+        </thead>
+        <tbody id="recordsTable"></tbody>
+      </table>
+      <p id="noRecordsMessage" class="mt-4 text-gray-500 hidden">No completed tasks recorded yet.</p>
+    </section>
+    </main>
+
+  <div id="startConfirmationPopup" class="popup-overlay hidden">
+    <div class="popup-content">
+      <p class="mb-4 text-xl font-semibold">Ready for <span id="popupTaskName" class="text-indigo-600"></span>?</p>
+      <p>Have you started working on this task?</p>
+      <div class="popup-buttons">
+        <button id="startButtonYes" class="popup-button bg-green-500 text-white hover:bg-green-600">Yes</button>
+        <button id="startButtonNo" class="popup-button bg-red-500 text-white hover:bg-red-600">No</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="backlogWarningPopup" class="popup-overlay hidden">
+    <div class="popup-content">
+      <p class="mb-4 text-xl font-semibold">Heads up!</p>
+      <p>Skipping this task might make your backlog bigger and could be stressful later.</p>
+      <div class="popup-buttons">
+        <button id="backlogButtonReschedule" class="popup-button bg-blue-500 text-white hover:bg-blue-600">I'll do it later</button>
+        <button id="backlogButtonNo" class="popup-button bg-red-500 text-white hover:bg-red-600">Skip and Move to Backlog</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="reschedulePopup" class="popup-overlay hidden">
+    <div class="popup-content">
+      <p class="mb-4 text-xl font-semibold">When would you like to reschedule <span id="rescheduleTaskName" class="text-indigo-600"></span>?</p>
+      <input type="time" id="rescheduleTimeInput" class="w-full p-2 border rounded mb-4" />
+      <div class="popup-buttons">
+        <button id="rescheduleConfirmButton" class="popup-button bg-indigo-600 text-white hover:bg-indigo-700">Reschedule</button>
+        <button id="rescheduleCancelButton" class="popup-button bg-gray-400 text-white hover:bg-gray-500">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+
+  <script>
+    const schedule = [];
+    const backlog = [];
+    const bonusTasks = [];
+    const records = []; // New array to store completed task records
+
+    let currentPopupTaskIndex = -1; // To keep track of which task the popup refers to
+
+    // Helper to format Date objects into readable time strings
+    function formatTime(date) {
+        if (!date) return 'N/A';
+        return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+    }
+
+    // Helper to format Date objects into readable date+time strings
+    function formatDateTime(date) {
+        if (!date) return 'N/A';
+        return date.toLocaleString('en-US', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true });
+    }
+
+    function updateTime() {
+      document.getElementById('time').innerText = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true });
+    }
+    setInterval(updateTime, 1000);
+
+    function showTab(id) {
+      document.querySelectorAll('.tab-content').forEach(e => e.classList.add('hidden'));
+      document.getElementById(id).classList.remove('hidden');
+      if (id === 'statsTab') setTimeout(updateStats, 100);
+      if (id === 'backlogTab') renderBacklog();
+      if (id === 'recordsTab') renderRecords(); // Render records when tab is shown
+      // Hide any active popups when changing tabs
+      hidePopup('startConfirmationPopup');
+      hidePopup('backlogWarningPopup');
+      hidePopup('reschedulePopup');
+    }
+
+    function addTask() {
+      const task = document.getElementById('taskName').value.trim();
+      const time = document.getElementById('taskTime').value;
+      if (task && time) {
+        const [hours, minutes] = time.split(':').map(Number);
+        const taskDateTime = new Date();
+        const today = new Date();
+        taskDateTime.setFullYear(today.getFullYear(), today.getMonth(), today.getDate());
+        taskDateTime.setHours(hours, minutes, 0, 0);
+
+        schedule.push({
+            task,
+            time,
+            status: 'Pending',
+            dateTime: taskDateTime,
+            wasAlerted: false,
+            startTime: null // Initialize startTime
+        });
+        document.getElementById('taskName').value = "";
+        document.getElementById('taskTime').value = "";
+        renderSchedule();
+      }
+    }
+
+    function renderSchedule() {
+      const table = document.getElementById('scheduleTable');
+      table.innerHTML = '';
+      if (schedule.length === 0) {
+        table.innerHTML = '<tr><td colspan="4" class="p-4 text-center text-gray-500">No tasks scheduled for today.</td></tr>';
+        return;
+      }
+      schedule.forEach((item, index) => {
+        let statusClass = '';
+        if (item.status === 'Completed') {
+          statusClass = 'text-green-600';
+        } else if (item.status === 'Missed') {
+          statusClass = 'text-red-600';
+        } else if (item.status === 'In Progress') {
+          statusClass = 'text-blue-600';
+        } else if (item.status === 'Alerted') {
+            statusClass = 'text-purple-600'; // Visually different for alerted tasks
+        }
+        else {
+          statusClass = 'text-yellow-600'; // Pending
+        }
+
+        table.innerHTML += `
+          <tr>
+            <td class='p-2'>${item.task}</td>
+            <td class='p-2'>${item.time}</td>
+            <td class='p-2 ${statusClass}'>${item.status}</td>
+            <td class='p-2'>
+              ${item.status === 'Pending' || item.status === 'In Progress' || item.status === 'Alerted' ? `<button onclick='markComplete(${index})' class='bg-green-500 text-white px-2 py-1 rounded hover:bg-green-600'>✓</button>` : ''}
+              ${item.status === 'Pending' ? `<button onclick='markInProgress(${index})' class='bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 ml-2'>Start</button>` : ''}
+              <button onclick='deleteTask(${index})' class='bg-red-500 text-white px-2 py-1 rounded hover:bg-red-600 ${item.status === 'Pending' || item.status === 'In Progress' || item.status === 'Alerted' ? 'ml-2' : ''}'>×</button>
+            </td>
+          </tr>`;
+      });
+    }
+
+    function markComplete(index) {
+      if (schedule[index].status !== 'Completed' && schedule[index].status !== 'Missed') {
+        const task = schedule[index];
+        task.status = 'Completed';
+        task.endTime = new Date(); // Record completion time
+
+        // Calculate duration if startTime is available
+        let duration = 'N/A';
+        if (task.startTime) {
+            const diffMs = task.endTime.getTime() - task.startTime.getTime();
+            const minutes = Math.floor(diffMs / (1000 * 60));
+            const hours = Math.floor(minutes / 60);
+            const remainingMinutes = minutes % 60;
+            if (hours > 0) {
+                duration = `${hours}h ${remainingMinutes}m`;
+            } else {
+                duration = `${remainingMinutes}m`;
+            }
+        }
+
+        // Add to records
+        records.push({
+            task: task.task,
+            scheduledTime: task.time,
+            startTime: task.startTime,
+            endTime: task.endTime,
+            duration: duration
+        });
+
+        schedule.splice(index, 1); // Remove from schedule once completed
+        renderSchedule();
+        updateStats();
+        renderRecords(); // Update records display
+      }
+    }
+
+    function markInProgress(index) {
+        if (schedule[index].status === 'Pending' || schedule[index].status === 'Alerted') {
+            schedule[index].status = 'In Progress';
+            schedule[index].startTime = new Date(); // Record start time
+            schedule[index].wasAlerted = false; // Reset alert status
+            renderSchedule();
+            updateStats();
+        }
+    }
+
+    function deleteTask(index) {
+      const taskToDelete = schedule[index];
+      if (taskToDelete.status === 'Missed') {
+        const backlogIndex = backlog.findIndex(item => item.task === taskToDelete.task && item.time === taskToDelete.time);
+        if (backlogIndex > -1) {
+          backlog.splice(backlogIndex, 1);
+          renderBacklog();
+        }
+      }
+      schedule.splice(index, 1);
+      renderSchedule();
+      updateStats();
+    }
+
+    function addBonus() {
+      const name = document.getElementById('bonusTask').value.trim();
+      const time = document.getElementById('bonusTime').value;
+      if (name && time) {
+        bonusTasks.push({ name, time });
+        document.getElementById('bonusTask').value = "";
+        document.getElementById('bonusTime').value = "";
+        renderBonus();
+      }
+    }
+
+    function renderBonus() {
+      const list = document.getElementById('bonusList');
+      list.innerHTML = bonusTasks.map(task => `<div class='bg-blue-100 p-2 rounded'>${task.name} at ${task.time}</div>`).join('');
+    }
+
+    function renderBacklog() {
+      const list = document.getElementById('backlogList');
+      list.innerHTML = backlog.map(item => `
+        <div class="bg-red-100 p-3 rounded shadow-sm flex justify-between items-center">
+          <div>
+            <span class="font-semibold">${item.task}</span> (Missed at ${item.time})
+          </div>
+          <button onclick="removeBacklogItem('${item.task}', '${item.time}')" class="bg-red-500 text-white px-2 py-1 rounded hover:bg-red-600">Remove</button>
+        </div>
+      `).join('');
+      if (backlog.length === 0) {
+        list.innerHTML = '<p class="text-gray-500">No tasks in backlog.</p>';
+      }
+    }
+
+    function removeBacklogItem(taskName, taskTime) {
+      const index = backlog.findIndex(item => item.task === taskName && item.time === taskTime);
+      if (index > -1) {
+        backlog.splice(index, 1);
+        renderBacklog();
+      }
+    }
+
+    // --- New Records Tab Functions ---
+    function renderRecords() {
+        const table = document.getElementById('recordsTable');
+        const noRecordsMessage = document.getElementById('noRecordsMessage');
+        table.innerHTML = '';
+
+        if (records.length === 0) {
+            noRecordsMessage.classList.remove('hidden');
+        } else {
+            noRecordsMessage.classList.add('hidden');
+            records.forEach(record => {
+                table.innerHTML += `
+                    <tr>
+                        <td class='p-2'>${record.task}</td>
+                        <td class='p-2'>${record.scheduledTime}</td>
+                        <td class='p-2'>${formatTime(record.startTime)}</td>
+                        <td class='p-2'>${formatTime(record.endTime)}</td>
+                        <td class='p-2'>${record.duration}</td>
+                    </tr>
+                `;
+            });
+        }
+    }
+    // --- End New Records Tab Functions ---
+
+    // --- Popup Functions ---
+    function showPopup(popupId) {
+        document.getElementById(popupId).classList.remove('hidden');
+    }
+
+    function hidePopup(popupId) {
+        document.getElementById(popupId).classList.add('hidden');
+    }
+
+    // This function is called when a task's time is reached
+    function triggerStartConfirmation(index) {
+        currentPopupTaskIndex = index;
+        const task = schedule[index];
+        document.getElementById('popupTaskName').innerText = task.task;
+        showPopup('startConfirmationPopup');
+    }
+
+    // Handlers for the "Start Confirmation" popup buttons
+    document.getElementById('startButtonYes').onclick = () => {
+        if (currentPopupTaskIndex !== -1) {
+            markInProgress(currentPopupTaskIndex); // Use existing markInProgress function
+        }
+        hidePopup('startConfirmationPopup');
+        currentPopupTaskIndex = -1; // Reset
+    };
+
+    document.getElementById('startButtonNo').onclick = () => {
+        hidePopup('startConfirmationPopup');
+        if (currentPopupTaskIndex !== -1) {
+            showPopup('backlogWarningPopup'); // Show the second popup
+        }
+    };
+
+    // Handlers for the "Backlog Warning" popup buttons
+    document.getElementById('backlogButtonReschedule').onclick = () => {
+        hidePopup('backlogWarningPopup');
+        if (currentPopupTaskIndex !== -1) {
+            document.getElementById('rescheduleTaskName').innerText = schedule[currentPopupTaskIndex].task;
+            document.getElementById('rescheduleTimeInput').value = schedule[currentPopupTaskIndex].time; // Pre-fill with current time
+            showPopup('reschedulePopup'); // Show the reschedule popup
+        }
+    };
+
+    document.getElementById('backlogButtonNo').onclick = () => {
+        if (currentPopupTaskIndex !== -1) {
+            const task = schedule[currentPopupTaskIndex];
+            if (task.status === 'Alerted' || task.status === 'Pending') {
+                task.status = 'Missed';
+                backlog.push({ task: task.task, time: task.time });
+                schedule.splice(currentPopupTaskIndex, 1); // Remove from schedule
+                renderSchedule();
+                renderBacklog();
+                updateStats();
+            }
+        }
+        hidePopup('backlogWarningPopup');
+        currentPopupTaskIndex = -1; // Reset
+    };
+
+    // Handlers for the "Reschedule" popup buttons
+    document.getElementById('rescheduleConfirmButton').onclick = () => {
+        if (currentPopupTaskIndex !== -1) {
+            const newTime = document.getElementById('rescheduleTimeInput').value;
+            if (newTime) {
+                const task = schedule[currentPopupTaskIndex];
+                const [hours, minutes] = newTime.split(':').map(Number);
+                const newDateTime = new Date();
+                const today = new Date();
+                newDateTime.setFullYear(today.getFullYear(), today.getMonth(), today.getDate());
+                newDateTime.setHours(hours, minutes, 0, 0);
+
+                const now = new Date();
+                now.setSeconds(0,0,0);
+                // If rescheduled to a past time for today, shift to tomorrow
+                if (newDateTime.getTime() < now.getTime()) {
+                    newDateTime.setDate(newDateTime.getDate() + 1);
+                }
+
+                task.time = newTime;
+                task.dateTime = newDateTime;
+                task.status = 'Pending'; // Rescheduled task goes back to pending
+                task.wasAlerted = false; // Reset alert status
+                task.startTime = null; // Reset start time for rescheduled task
+
+                renderSchedule();
+                updateStats();
+            }
+        }
+        hidePopup('reschedulePopup');
+        currentPopupTaskIndex = -1; // Reset
+    };
+
+    document.getElementById('rescheduleCancelButton').onclick = () => {
+        if (currentPopupTaskIndex !== -1) {
+            const task = schedule[currentPopupTaskIndex];
+            if (task.status === 'Alerted' || task.status === 'Pending') {
+                task.status = 'Missed';
+                backlog.push({ task: task.task, time: task.time });
+                schedule.splice(currentPopupTaskIndex, 1); // Remove from schedule
+                renderSchedule();
+                renderBacklog();
+                updateStats();
+            }
+        }
+        hidePopup('reschedulePopup');
+        currentPopupTaskIndex = -1; // Reset
+    };
+    // --- End Popup Functions ---
+
+
+    function checkMissedTasks() {
+      const now = new Date();
+      now.setSeconds(0, 0, 0);
+
+      let scheduleChanged = false;
+
+      // Iterate backwards to safely remove items
+      for (let i = schedule.length - 1; i >= 0; i--) {
+        const task = schedule[i];
+
+        // Skip if task is already In Progress or Completed
+        if (task.status === 'In Progress' || task.status === 'Completed' || task.status === 'Missed') {
+            continue;
+        }
+
+        const taskDateTimeForComparison = new Date(task.dateTime);
+        const today = new Date();
+        // Set taskDateTimeForComparison to today's date if its date is not tomorrow's date
+        // This handles tasks that were rescheduled to tomorrow and now it's tomorrow.
+        if (taskDateTimeForComparison.getDate() !== today.getDate() &&
+            taskDateTimeForComparison.getDate() !== (today.getDate() + 1) && // check for tomorrow's date too
+            taskDateTimeForComparison.getMonth() !== today.getMonth() &&
+            taskDateTimeForComparison.getFullYear() !== today.getFullYear()) {
+            taskDateTimeForComparison.setFullYear(today.getFullYear(), today.getMonth(), today.getDate());
+        }
+        taskDateTimeForComparison.setSeconds(0,0,0);
+
+
+        // Scenario 1: Task time has arrived/passed and it's Pending and NOT alerted yet
+        if (task.status === 'Pending' && !task.wasAlerted && now.getTime() >= taskDateTimeForComparison.getTime()) {
+          triggerStartConfirmation(i);
+          task.status = 'Alerted'; // Temporarily mark as alerted
+          task.wasAlerted = true; // Set flag to prevent repeated alerts for same task for TODAY
+          scheduleChanged = true;
+        }
+        // Scenario 2: Task was Alerted or still Pending, and grace period passed without action
+        const GRACE_PERIOD_MS = 5 * 60 * 1000; // 5 minutes grace period
+        if ((task.status === 'Alerted' || task.status === 'Pending') &&
+            now.getTime() > (taskDateTimeForComparison.getTime() + GRACE_PERIOD_MS) &&
+            currentPopupTaskIndex !== i // Don't move to backlog if its popup is currently open
+        ) {
+            task.status = 'Missed';
+            backlog.push({ task: task.task, time: task.time });
+            schedule.splice(i, 1); // Remove from schedule
+            scheduleChanged = true;
+            // No need to break here, as we are iterating backwards
+        }
+      }
+      if (scheduleChanged) {
+        renderSchedule();
+        updateStats();
+        // Ensure backlog is updated if any tasks were moved
+        if (document.getElementById('backlogTab').classList.contains('hidden') === false) {
+            renderBacklog();
+        }
+      }
+    }
+
+    function updateStats() {
+      const ctx = document.getElementById('statsChart').getContext('2d');
+      const completed = schedule.filter(t => t.status === 'Completed').length + records.length; // Include completed from records
+      const missed = schedule.filter(t => t.status === 'Missed').length + backlog.length; // Include backlog tasks as missed
+      const pending = schedule.filter(t => t.status === 'Pending' || t.status === 'Alerted').length;
+      const inProgress = schedule.filter(t => t.status === 'In Progress').length;
+
+
+      if (window.statsChart && typeof window.statsChart.destroy === 'function') {
+        window.statsChart.destroy();
+      }
+
+      window.statsChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: ['Completed', 'Missed', 'Pending', 'In Progress'],
+          datasets: [{
+            label: 'Tasks',
+            data: [completed, missed, pending, inProgress],
+            backgroundColor: ['#34d399', '#f87171', '#fbbf24', '#60a5fa']
+          }]
+        },
+        options: {
+          scales: {
+            y: {
+              beginAtZero: true
+            }
+          }
+        }
+      });
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      updateTime();
+      renderSchedule();
+      setInterval(checkMissedTasks, 5 * 1000); // Check every 5 seconds
+    });
+  </script>
+</body>
+</html>
